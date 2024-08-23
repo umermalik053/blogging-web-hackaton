@@ -15,10 +15,55 @@ import {
   query,
   where,
 } from "https://www.gstatic.com/firebasejs/9.0.2/firebase-firestore.js";
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+} from "https://www.gstatic.com/firebasejs/9.0.2/firebase-storage.js";
 
 const provider = new GoogleAuthProvider();
 const auth = getAuth();
 const db = getFirestore();
+const storage = getStorage();
+
+let image = document.querySelector("#image");
+let uploadTask;
+let ImageUrl;
+
+if (image) {
+  image.addEventListener("change", () => {
+    console.log(image);
+    const files = image.files[0];
+    const imagesRefWithFolder = ref(storage, files.name);
+    uploadTask = uploadBytesResumable(imagesRefWithFolder, files);
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const progress =
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        console.log("Upload is " + progress + "% done");
+        switch (snapshot.state) {
+          case "paused":
+            console.log("Upload is paused");
+            break;
+          case "running":
+            console.log("Upload is running");
+            break;
+        }
+      },
+      (error) => {
+        console.log(error);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          ImageUrl = downloadURL;
+          console.log(ImageUrl);
+        });
+      }
+    );
+  });
+}
 
 const signupForm = document.getElementById("signupForm");
 if (signupForm) {
@@ -105,6 +150,7 @@ if (postForm) {
     await addDoc(collection(db, "posts"), {
       title,
       content,
+      ImageUrl,
       uid: auth.currentUser.uid,
     });
     loadPosts();
@@ -122,11 +168,16 @@ async function onload() {
     querySnapshot.forEach((doc) => {
       const postData = doc.data();
       const post = document.createElement("div");
-      post.classList.add("blog-post");
+      // post.classList.add("blog-post");
       post.innerHTML = `
-                <h3 class="content">${postData.title}</h3>
-                <p class="content">${postData.content}</p>
-            `;
+               <div class="card" style="width: 18rem;">
+               <img src="${postData.ImageUrl}" class="card-img-top" alt="...">
+               <div class="card-body">
+               <h5 class="card-title">${postData.title}</h5>
+               <p class="card-text">${postData.content}</p>
+              </div>
+              </div>
+                `;
       blogsDiv.appendChild(post);
     });
   }
